@@ -1,0 +1,23 @@
+Recap: cosa viene inviato a ciascun agente (dual-agent)
+
+Invio per ogni richiesta:
+- System prompt specifico agente (explorer o trainer).
+- message_history completo dell'agente, a cui viene aggiunto lo snapshot corrente.
+
+Snapshot corrente (testo + screenshot):
+- Agent: nome agente.
+- Shared objective (se presente, altrimenti None).
+- Opinions for you (dall'altro agente via tool opinion).
+- Last tool explanation from other agent (solo explanation_of_action piu recente, o None).
+- RAM snapshot:
+  - Explorer: player, rival, location, coords, valid moves, badges, dialog.
+  - Trainer: memoria completa via get_state_from_memory().
+- Labeled nearby locations.
+- Last checkpoints (ultimi 10).
+- TEXT_MAP (solo explorer, se non in combat e use_full_collision_map).
+- RAG_MEMORY_JSON (se presente in rag/memory_summary.json).
+- Screenshot corrente (image_url base64).
+
+Note:
+- I tool results e gli assistant messages restano nella message_history e quindi vengono reinviati come contesto finche non viene fatta la sintesi/troncamento.
+- Quando scatta max_history, viene creato il RAG summary e le history vengono resettate a un messaggio iniziale.

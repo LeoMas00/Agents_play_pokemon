@@ -1,0 +1,1356 @@
+<!DOCTYPE html>
+<html lang="it">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Dual Agent Overlay — Twitch</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --bg: #020814;
+        --bg-soft: rgba(7, 16, 32, 0.92);
+        --panel: rgba(10, 24, 54, 0.96);
+        --panel-soft: rgba(8, 20, 46, 0.86);
+        --outline: rgba(94, 234, 212, 0.45);
+        --accent: #4dd0e1;
+        --accent-2: #7cf6c7;
+        --danger: #ff4f7b;
+        --muted: #8ea0b5;
+        --text: #e8f4ff;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+        height: 100%;
+        font-family: "Space Grotesk", system-ui, -apple-system, BlinkMacSystemFont,
+          "Segoe UI", sans-serif;
+        font-size: 15px;
+        background: radial-gradient(circle at top, #04162b 0, #020814 55%, #000 100%);
+        color: var(--text);
+        overflow: hidden;
+      }
+
+      body {
+        /* leggero zoom per 1080p, ma resta responsivo */
+        padding: 12px 20px 16px;
+      }
+
+      .twitch-layout {
+        position: relative;
+        height: 100%;
+        width: 100%;
+        max-width: 1920px;
+        margin: 0 auto;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+
+      /* HEADER */
+      .stream-header {
+        display: none;
+      }
+
+      .stream-title {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+
+      .stream-name {
+        font-size: 22px;
+        font-weight: 600;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+      }
+
+      .live-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 4px 10px 4px 6px;
+        border-radius: 999px;
+        background: radial-gradient(circle at 20% 0, #ff4f7b, #c01b4e);
+        box-shadow: 0 0 20px rgba(255, 79, 123, 0.55);
+        font-size: 12px;
+        text-transform: uppercase;
+        letter-spacing: 0.16em;
+      }
+
+      .live-dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        background: #fff;
+      }
+
+      .stream-meta {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-size: 13px;
+        color: var(--muted);
+      }
+
+      .meta-chip {
+        padding: 4px 9px;
+        border-radius: 999px;
+        border: 1px solid rgba(94, 234, 212, 0.28);
+        background: rgba(7, 22, 44, 0.9);
+        color: var(--accent-2);
+      }
+
+      .meta-chip span {
+        opacity: 0.7;
+        margin-right: 6px;
+      }
+
+      /* GRID PRINCIPALE */
+      .main-grid {
+        flex: 1;
+        display: grid;
+        grid-template-columns: 480px minmax(0, 1fr) 480px;
+        grid-template-rows: minmax(0, 1fr) 190px;
+        gap: 10px;
+      }
+
+      .panel {
+        background: var(--panel);
+        border-radius: 18px;
+        padding: 12px;
+        box-shadow: 0 18px 45px rgba(0, 0, 0, 0.85);
+        border: 1px solid rgba(148, 163, 184, 0.12);
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
+      }
+
+      .panel--soft {
+        background: var(--panel-soft);
+      }
+
+      /* COLONNE AGENTI */
+      .agent-column {
+        position: relative;
+        overflow: hidden;
+      }
+
+      .agent-column::before {
+        content: "";
+        position: absolute;
+        inset: -40%;
+        background: radial-gradient(
+          circle at top,
+          rgba(77, 208, 225, 0.25),
+          transparent 65%
+        );
+        opacity: 0.26;
+        mix-blend-mode: screen;
+        pointer-events: none;
+      }
+
+      .agent-header {
+        position: relative;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding-bottom: 10px;
+        border-bottom: 1px solid rgba(148, 163, 184, 0.22);
+        margin-bottom: 10px;
+      }
+
+      .agent-avatar-wrap {
+        position: relative;
+        width: 64px;
+        height: 64px;
+        border-radius: 18px;
+        padding: 2px;
+        background: radial-gradient(circle at top left, #7cf6c7, #4dd0e1);
+        box-shadow: 0 0 22px rgba(77, 208, 225, 0.6);
+      }
+
+      .agent-avatar {
+        width: 100%;
+        height: 100%;
+        border-radius: 16px;
+        object-fit: cover;
+        display: block;
+      }
+
+      .agent-role-tag {
+        position: absolute;
+        bottom: -6px;
+        right: 4px;
+        padding: 2px 8px;
+        border-radius: 999px;
+        background: rgba(2, 8, 20, 0.94);
+        border: 1px solid rgba(148, 163, 184, 0.5);
+        font-size: 10px;
+        text-transform: uppercase;
+        letter-spacing: 0.14em;
+      }
+
+      .agent-title-block {
+        flex: 1;
+        min-width: 0;
+      }
+
+      .agent-name {
+        font-size: 22px;
+        font-weight: 600;
+      }
+
+      .agent-tagline {
+        font-size: 14px;
+        color: var(--muted);
+        margin-top: 2px;
+      }
+
+      .agent-objective {
+        position: relative;
+        margin-bottom: 8px;
+        border-radius: 12px;
+        padding: 8px 9px;
+        background: linear-gradient(
+          135deg,
+          rgba(4, 120, 87, 0.24),
+          rgba(15, 23, 42, 0.96)
+        );
+        border: 1px solid rgba(74, 222, 128, 0.3);
+        font-size: 15px;
+      }
+
+      .section-label {
+        font-size: 12px;
+        text-transform: uppercase;
+        letter-spacing: 0.18em;
+        color: var(--muted);
+        margin-bottom: 4px;
+      }
+
+      .agent-explanation {
+        position: relative;
+        margin-bottom: 8px;
+        border-radius: 12px;
+        padding: 8px 9px;
+        background: rgba(15, 23, 42, 0.98);
+        border: 1px dashed rgba(148, 163, 184, 0.4);
+        font-size: 15px;
+        min-height: 56px;
+      }
+
+      .agent-tools-list {
+        position: relative;
+        flex: 1;
+        min-height: 0;
+        margin-top: 6px;
+        padding: 6px 8px;
+        border-radius: 12px;
+        background: rgba(15, 23, 42, 0.96);
+        border: 1px solid rgba(30, 64, 175, 0.7);
+        font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Monaco,
+          Consolas, "Liberation Mono", "Courier New", monospace;
+        font-size: 14px;
+        overflow-y: auto;
+      }
+
+      .tool-row {
+        display: flex;
+        flex-direction: column;
+        padding: 4px 0;
+        border-bottom: 1px solid rgba(15, 23, 42, 0.96);
+      }
+
+      .tool-row:last-child {
+        border-bottom: none;
+      }
+
+      .tool-name {
+        font-weight: 600;
+        color: var(--accent);
+        text-transform: lowercase;
+      }
+
+      .tool-args {
+        margin-top: 2px;
+        color: var(--muted);
+        white-space: pre-wrap;
+        word-break: break-word;
+      }
+
+      .tool-buttons {
+        margin-top: 4px;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 4px;
+      }
+
+      .btn-chip {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 3px 7px;
+        border-radius: 999px;
+        border: 1px solid rgba(94, 234, 212, 0.58);
+        background: rgba(8, 47, 73, 0.95);
+        font-size: 13px;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+      }
+
+      /* AREA CENTRALE: OVERLAY GIOCO */
+      .game-panel {
+        position: relative;
+        background: radial-gradient(circle at top, rgba(37, 99, 235, 0.18), transparent 55%);
+        border-radius: 20px;
+        border: 1px solid rgba(148, 163, 184, 0.35);
+        overflow: visible;
+        display: flex;
+        flex-direction: column;
+        align-items: stretch;
+        justify-content: flex-start;
+        padding: 12px;
+        gap: 10px;
+      }
+
+      .center-goals {
+        display: flex;
+        justify-content: center;
+        align-items: stretch;
+        gap: 16px;
+        padding: 16px 24px;
+        border-radius: 14px;
+        background: rgba(15, 23, 42, 0.96);
+        border: 1px solid rgba(148, 163, 184, 0.4);
+        width: 100%;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
+        margin-bottom: 0;
+      }
+
+      .center-goal {
+        min-width: 0;
+        padding: 12px 18px;
+        border-radius: 10px;
+        background: rgba(15, 23, 42, 0.96);
+        border: 1px solid rgba(51, 65, 85, 0.9);
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        flex: 1;
+        min-height: 0;
+      }
+
+      .center-goal--explorer {
+        border-color: rgba(56, 189, 248, 0.8);
+        border-width: 2px;
+      }
+
+      .center-goal--trainer {
+        border-color: rgba(251, 113, 133, 0.9);
+        border-width: 2px;
+      }
+
+      .center-goal-label {
+        font-size: 15px;
+        text-transform: uppercase;
+        letter-spacing: 0.18em;
+        color: var(--muted);
+        font-weight: 600;
+        flex-shrink: 0;
+      }
+
+      .center-goal-text {
+        font-size: 20px;
+        color: var(--text);
+        white-space: normal;
+        overflow-y: auto;
+        overflow-x: hidden;
+        max-width: none;
+        font-weight: 500;
+        line-height: 1.4;
+        flex: 1;
+        min-height: 0;
+        max-height: 120px;
+      }
+      
+      .center-goal-text::-webkit-scrollbar {
+        width: 6px;
+      }
+      
+      .center-goal-text::-webkit-scrollbar-track {
+        background: rgba(15, 23, 42, 0.5);
+        border-radius: 3px;
+      }
+      
+      .center-goal-text::-webkit-scrollbar-thumb {
+        background: rgba(148, 163, 184, 0.4);
+        border-radius: 3px;
+      }
+      
+      .center-goal-text::-webkit-scrollbar-thumb:hover {
+        background: rgba(148, 163, 184, 0.6);
+      }
+
+      .game-frame {
+        position: relative;
+        flex: 1;
+        border-radius: 18px;
+        border: 2px dashed rgba(148, 163, 184, 0.6);
+        background: transparent;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        /* schermo stile Game Boy: quadrato */
+        aspect-ratio: 1 / 1;
+        max-width: 100%;
+        max-height: 100%;
+      }
+
+      .game-frame-inner {
+        pointer-events: none;
+        text-align: center;
+        max-width: 80%;
+      }
+
+      .game-label {
+        font-size: 18px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.24em;
+        color: rgba(148, 163, 184, 0.95);
+        margin-bottom: 6px;
+      }
+
+      .game-help {
+        font-size: 14px;
+        color: var(--muted);
+      }
+
+      /* ZONA SOTTO: TOOLCALL GLOBALI + MEMORY */
+      .bottom-grid {
+        grid-column: 1 / -1;
+        display: grid;
+        grid-template-columns: minmax(0, 1fr);
+        gap: 10px;
+      }
+
+      .global-log {
+        font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Monaco,
+          Consolas, "Liberation Mono", "Courier New", monospace;
+        font-size: 14px;
+        padding: 8px 9px;
+        border-radius: 12px;
+        background: rgba(15, 23, 42, 0.96);
+        border: 1px solid rgba(30, 64, 175, 0.7);
+        overflow-y: auto;
+      }
+
+      .global-line {
+        padding: 3px 0;
+      }
+
+      .global-line-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+      }
+
+      .global-agent-tag {
+        font-size: 12px;
+        text-transform: uppercase;
+        letter-spacing: 0.18em;
+        color: rgba(148, 163, 184, 0.9);
+      }
+
+      .global-time {
+        font-size: 12px;
+        color: rgba(148, 163, 184, 0.8);
+      }
+
+      .global-explanation {
+        margin-top: 2px;
+        color: var(--muted);
+      }
+
+      .memory-panel {
+        font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Monaco,
+          Consolas, "Liberation Mono", "Courier New", monospace;
+        font-size: 12px;
+        padding: 6px 8px;
+        border-radius: 12px;
+        background: rgba(15, 23, 42, 0.96);
+        border: 1px solid rgba(30, 64, 175, 0.6);
+        overflow-y: auto;
+      }
+
+      .kv-row {
+        padding: 4px 0;
+        border-bottom: 1px solid rgba(15, 23, 42, 0.96);
+      }
+
+      .kv-row:last-child {
+        border-bottom: none;
+      }
+
+      .kv-key {
+        font-weight: 600;
+        color: rgba(148, 163, 184, 0.96);
+        margin-bottom: 2px;
+      }
+
+      .kv-value {
+        white-space: pre-wrap;
+        color: var(--text);
+      }
+
+      .tiny {
+        font-size: 13px;
+      }
+
+      /* RESPONSIVE PER TEST RAPIDO, NON PENSATO PER MOBILE */
+      @media (max-width: 1200px) {
+        body {
+          padding: 8px;
+        }
+
+        .main-grid {
+          grid-template-columns: 360px minmax(0, 1.2fr) 360px;
+        }
+
+        .agent-column {
+          font-size: 12px;
+        }
+      }
+
+      @media (max-width: 960px) {
+        html,
+        body {
+          overflow: auto;
+        }
+
+        .twitch-layout {
+          height: auto;
+        }
+
+        .main-grid {
+          grid-template-columns: 1fr;
+          grid-template-rows: auto;
+        }
+
+        .bottom-grid {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="twitch-layout">
+      <header class="stream-header">
+        <div class="stream-title">
+          <div class="stream-name">Dual Agent Pokémon Run</div>
+          <div class="live-pill" id="live-pill">
+            <span class="live-dot"></span>
+            <span id="live-label">offline</span>
+          </div>
+        </div>
+        <div class="stream-meta">
+          <div class="meta-chip">
+            <span>Goal</span>
+            <strong id="global-objective">waiting…</strong>
+          </div>
+          <div class="meta-chip">
+            <span>Last update</span>
+            <strong id="timestamp">--:--:--</strong>
+          </div>
+        </div>
+      </header>
+
+      <div class="main-grid">
+        <!-- EXPLORER -->
+        <aside class="panel agent-column panel--soft">
+          <div class="agent-header">
+            <div class="agent-avatar-wrap">
+              <img
+                class="agent-avatar"
+                src="agent-images/explorer.jpg"
+                alt="Explorer agent"
+              />
+              <div class="agent-role-tag">Explorer</div>
+            </div>
+          <div class="agent-title-block">
+            <div class="agent-name">Explorer</div>
+            <div class="agent-tagline">
+              finds routes, items and interesting situations.
+            </div>
+          </div>
+          </div>
+
+          <div class="section-label">Move explanation</div>
+          <div id="explorer-explanation" class="agent-explanation">
+            Waiting for the agent’s first action.
+          </div>
+
+          <div class="section-label">Recent tool calls</div>
+          <div id="explorer-tools" class="agent-tools-list">
+            No tool calls.
+          </div>
+        </aside>
+
+        <!-- CENTER AREA FOR GAME OVERLAY (STREAMLABS/OBS) -->
+        <section class="game-panel">
+          <div class="center-goals">
+            <div class="center-goal center-goal--explorer">
+              <div class="center-goal-label">Explorer goal</div>
+              <div id="center-goal-explorer" class="center-goal-text">
+                No goal yet.
+              </div>
+            </div>
+            <div class="center-goal center-goal--trainer">
+              <div class="center-goal-label">Trainer goal</div>
+              <div id="center-goal-trainer" class="center-goal-text">
+                No goal yet.
+              </div>
+            </div>
+          </div>
+
+          <div class="game-frame" id="game-frame">
+            <div class="game-frame-inner">
+              <div class="game-label">Game overlay area</div>
+              <div class="game-help">
+                Add this page as a
+                <strong>Browser Source</strong> in Streamlabs/OBS.<br />
+                Place the game capture <strong>behind</strong> this overlay:
+                the center stays free for gameplay.
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- TRAINER -->
+        <aside class="panel agent-column panel--soft">
+          <div class="agent-header">
+            <div class="agent-avatar-wrap">
+              <img
+                class="agent-avatar"
+                src="agent-images/trainer.jpg"
+                alt="Trainer agent"
+              />
+              <div class="agent-role-tag">Trainer</div>
+            </div>
+          <div class="agent-title-block">
+            <div class="agent-name">Trainer</div>
+            <div class="agent-tagline">
+              manages battles, party swaps and risky decisions.
+            </div>
+          </div>
+          </div>
+
+          <div class="section-label">Move explanation</div>
+          <div id="trainer-explanation" class="agent-explanation">
+            Waiting for the agent’s first action.
+          </div>
+
+          <div class="section-label">Recent tool calls</div>
+          <div id="trainer-tools" class="agent-tools-list">
+            No tool calls.
+          </div>
+        </aside>
+
+        <!-- BOTTOM ROW: GLOBAL TOOL CALL TIMELINE ONLY -->
+        <div class="bottom-grid">
+          <section class="panel panel--soft">
+            <div class="section-label">Tool call timeline</div>
+            <div id="global-tools" class="global-log">No events yet.</div>
+          </section>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      const livePill = document.getElementById("live-pill");
+      const liveLabel = document.getElementById("live-label");
+      const timestampEl = document.getElementById("timestamp");
+      const globalObjectiveEl = document.getElementById("global-objective");
+
+      const objExplorerEl = document.getElementById("center-goal-explorer");
+      const objTrainerEl = document.getElementById("center-goal-trainer");
+
+      const explExplorerEl = document.getElementById("explorer-explanation");
+      const explTrainerEl = document.getElementById("trainer-explanation");
+
+      const toolsExplorerEl = document.getElementById("explorer-tools");
+      const toolsTrainerEl = document.getElementById("trainer-tools");
+      const toolsGlobalEl = document.getElementById("global-tools");
+
+      function setLive(isLive) {
+        if (isLive) {
+          liveLabel.textContent = "live";
+          livePill.style.opacity = "1";
+          livePill.style.filter = "none";
+        } else {
+          liveLabel.textContent = "offline";
+          livePill.style.opacity = "0.4";
+          livePill.style.filter = "grayscale(0.3)";
+        }
+      }
+
+      function safeParseArgs(raw) {
+        if (!raw) return {};
+        try {
+          return JSON.parse(raw);
+        } catch {
+          return { _raw: raw };
+        }
+      }
+
+      function extractExplanationFromTools(tools) {
+        if (!Array.isArray(tools) || !tools.length) return "";
+        const reversed = [...tools].reverse();
+        for (const t of reversed) {
+          const args = safeParseArgs(t.arguments);
+          const exp =
+            args.explanation_of_action || args.explanation || args.reason || "";
+          if (exp) return exp;
+        }
+        return "";
+      }
+
+      function renderAgentTools(container, tools, maxItems = 10) {
+        if (!Array.isArray(tools) || tools.length === 0) {
+          container.textContent = "No tool calls.";
+          return;
+        }
+        container.innerHTML = "";
+        const recent = tools.slice(-maxItems).reverse();
+        for (const t of recent) {
+          const row = document.createElement("div");
+          row.className = "tool-row";
+
+          const name = document.createElement("div");
+          name.className = "tool-name";
+          name.textContent = t.name || "tool";
+          row.appendChild(name);
+
+          const args = safeParseArgs(t.arguments);
+          const explanation =
+            args.explanation_of_action || args.explanation || args.reason || "";
+
+          if (explanation) {
+            const explainEl = document.createElement("div");
+            explainEl.className = "tool-args";
+            explainEl.textContent = explanation;
+            row.appendChild(explainEl);
+          } else if (args._raw) {
+            const rawEl = document.createElement("div");
+            rawEl.className = "tool-args";
+            rawEl.textContent = args._raw;
+            row.appendChild(rawEl);
+          }
+
+          if (Array.isArray(args.buttons) && args.buttons.length) {
+            const btnWrap = document.createElement("div");
+            btnWrap.className = "tool-buttons";
+            args.buttons.forEach((b) => {
+              const chip = document.createElement("div");
+              chip.className = "btn-chip";
+              chip.textContent = String(b).toUpperCase();
+              btnWrap.appendChild(chip);
+            });
+            row.appendChild(btnWrap);
+          }
+
+          container.appendChild(row);
+        }
+      }
+
+      function renderGlobalTools(container, tools, explorers, trainers) {
+        const all = [];
+        if (Array.isArray(explorers)) {
+          explorers.forEach((t) => all.push({ ...t, _agent: "Explorer" }));
+        }
+        if (Array.isArray(trainers)) {
+          trainers.forEach((t) => all.push({ ...t, _agent: "Trainer" }));
+        }
+
+        if (!all.length) {
+          container.textContent = "No events yet.";
+          return;
+        }
+
+        container.innerHTML = "";
+        const recent = all.slice(-14).reverse();
+        for (const t of recent) {
+          const line = document.createElement("div");
+          line.className = "global-line";
+
+          const head = document.createElement("div");
+          head.className = "global-line-head";
+
+          const left = document.createElement("div");
+          const agentTag = document.createElement("span");
+          agentTag.className = "global-agent-tag";
+          agentTag.textContent = t._agent || "Agent";
+
+          const name = document.createElement("span");
+          name.style.color = "var(--accent)";
+          name.style.marginLeft = "6px";
+          name.textContent = t.name || "tool";
+
+          left.appendChild(agentTag);
+          left.appendChild(name);
+
+          const time = document.createElement("span");
+          time.className = "global-time";
+          if (t.timestamp) {
+            try {
+              const date = new Date(t.timestamp * 1000);
+              time.textContent = date.toLocaleTimeString();
+            } catch {
+              time.textContent = "";
+            }
+          }
+
+          head.appendChild(left);
+          head.appendChild(time);
+          line.appendChild(head);
+
+          const args = safeParseArgs(t.arguments);
+          const exp =
+            args.explanation_of_action || args.explanation || args.reason || "";
+          if (exp) {
+            const expEl = document.createElement("div");
+            expEl.className = "global-explanation";
+            expEl.textContent = exp;
+
+            line.appendChild(expEl);
+          }
+
+          if (Array.isArray(args.buttons) && args.buttons.length) {
+            const btnWrap = document.createElement("div");
+            btnWrap.className = "tool-buttons";
+            args.buttons.forEach((b) => {
+              const chip = document.createElement("div");
+              chip.className = "btn-chip";
+              chip.textContent = String(b).toUpperCase();
+              btnWrap.appendChild(chip);
+            });
+            line.appendChild(btnWrap);
+          }
+
+          container.appendChild(line);
+        }
+      }
+
+      async function refresh() {
+        try {
+          const res = await fetch("./state.json", { cache: "no-store" });
+          if (!res.ok) throw new Error("no state");
+          const data = await res.json();
+
+          setLive(true);
+
+          const ts = data.timestamp || Date.now() / 1000;
+          timestampEl.textContent = new Date(ts * 1000).toLocaleTimeString();
+
+          // goals
+          const explorerOpinions = data.opinions?.explorer || [];
+          const trainerOpinions = data.opinions?.trainer || [];
+
+          const lastExplorerOpinion =
+            explorerOpinions.length && explorerOpinions[explorerOpinions.length - 1];
+          const lastTrainerOpinion =
+            trainerOpinions.length && trainerOpinions[trainerOpinions.length - 1];
+
+          let expObjVal = "No goal yet.";
+          if (data.objective?.explorer) expObjVal = data.objective.explorer;
+          else if (data.objective_explorer) expObjVal = data.objective_explorer;
+          else if (lastExplorerOpinion) expObjVal = lastExplorerOpinion;
+
+          let trObjVal = "No goal yet.";
+          if (data.objective?.trainer) trObjVal = data.objective.trainer;
+          else if (data.objective_trainer) trObjVal = data.objective_trainer;
+          else if (lastTrainerOpinion) trObjVal = lastTrainerOpinion;
+
+          objExplorerEl.textContent = expObjVal;
+          objTrainerEl.textContent = trObjVal;
+
+          // global goal at top
+          const shared =
+            data.objective?.shared ||
+            data.global_objective ||
+            data.objective?.overall;
+          if (shared) {
+            globalObjectiveEl.textContent = shared;
+          } else {
+            globalObjectiveEl.textContent = `${expObjVal} | ${trObjVal}`;
+          }
+
+          const explorerTools = data.agents?.explorer?.tools || [];
+          const trainerTools = data.agents?.trainer?.tools || [];
+
+          // explanations for each agent column
+          const expExplorerText =
+            extractExplanationFromTools(explorerTools) ||
+            (lastExplorerOpinion ? String(lastExplorerOpinion) : "");
+          explExplorerEl.textContent =
+            expExplorerText || "Waiting for the next move.";
+
+          const expTrainerText =
+            extractExplanationFromTools(trainerTools) ||
+            (lastTrainerOpinion ? String(lastTrainerOpinion) : "");
+          explTrainerEl.textContent =
+            expTrainerText || "Waiting for the next move.";
+
+          // per-agent tool panels
+          renderAgentTools(toolsExplorerEl, explorerTools, 10);
+          renderAgentTools(toolsTrainerEl, trainerTools, 10);
+
+          // global timeline
+          renderGlobalTools(toolsGlobalEl, [], explorerTools, trainerTools);
+        } catch (err) {
+          setLive(false);
+        }
+      }
+
+      refresh();
+      setInterval(refresh, 1500);
+    </script>
+  </body>
+</html>
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Dual Agent — Streaming UI</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600&family=IBM+Plex+Mono:wght@400&display=swap" rel="stylesheet" />
+  <style>
+    :root{
+      --bg:#07101a; --card:rgba(255,255,255,0.04); --glass:rgba(255,255,255,0.03);
+      --accent:#4dd0e1; --accent-2:#7cf6c7; --muted:#9bb0c1; --text:#e7f2f7;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%;margin:0;font-family:"Space Grotesk",sans-serif;background:linear-gradient(180deg,#07101a 0%,#071824 60%);color:var(--text)}
+    .wrap{
+      display:grid;
+      grid-template-columns:360px minmax(0,1fr) 360px;
+      grid-template-rows:56px auto minmax(0,1fr);
+      gap:10px;
+      padding:12px 18px 16px;
+      height:100vh;
+      max-width:1700px;
+      margin:0 auto;
+    }
+    header{grid-column:1/-1;display:flex;align-items:center;justify-content:space-between;padding:6px 12px}
+    header h1{margin:0;font-size:20px;font-weight:600}
+    .meta{display:flex;gap:10px;align-items:center;color:var(--muted);font-size:13px}
+    .badge{padding:6px 10px;border-radius:999px;background:rgba(77,208,225,0.08);color:var(--accent);border:1px solid rgba(77,208,225,0.12)}
+    .summary{padding:6px 10px;border-radius:999px;background:rgba(124,246,199,0.06);color:var(--accent-2);border:1px solid rgba(124,246,199,0.12)}
+
+    /* Panels */
+    .panel{
+      background:var(--card);
+      border-radius:14px;
+      padding:12px;
+      box-shadow:0 6px 18px rgba(0,0,0,0.55);
+      display:flex;
+      flex-direction:column;
+    }
+    .left{grid-column:1;grid-row:2 / span 2;}
+    .right{grid-column:3;grid-row:2 / span 2}
+    .center{grid-column:2;grid-row:3;display:flex;flex-direction:column;gap:12px;margin-top:4px}
+    .top-video{
+      grid-column:2;
+      grid-row:2;
+      display:flex;
+      flex-direction:column;
+      align-items:center;
+      justify-content:flex-start;
+    }
+
+    /* Video area */
+    .video-wrap{
+      width:100%;
+      max-width:720px;
+      aspect-ratio:1/1;
+      border-radius:20px;
+      background:radial-gradient(circle at 20% 0%,#0e2842 0,#061218 52%,#02060a 100%);
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      position:relative;
+      overflow:hidden;
+      margin:0 auto;
+      padding:12px;
+      border:1px solid rgba(255,255,255,0.08);
+    }
+    #game-video{
+      width:100%;
+      height:100%;
+      aspect-ratio:1/1;
+      object-fit:contain;
+      background:#000;
+      border-radius:12px;
+    }
+    .video-overlay{
+      position:absolute;
+      left:50%;
+      transform:translateX(-50%);
+      bottom:16px;
+      display:flex;
+      gap:8px;
+      align-items:center;
+      pointer-events:none;
+    }
+    .press-chip{background:rgba(124,246,199,0.11);border:1px solid rgba(124,246,199,0.18);color:var(--accent-2);padding:8px 12px;border-radius:999px;font-weight:700;letter-spacing:0.6px}
+
+    /* Agent summary */
+    .agent-top{display:flex;gap:12px;align-items:center}
+    .avatar{width:56px;height:56px;border-radius:12px;object-fit:cover;border:2px solid rgba(255,255,255,0.04)}
+    .agent-name{font-weight:600}
+
+    .section-title{font-size:13px;color:var(--muted);margin-bottom:6px}
+    .memory-panel{background:var(--glass);border-radius:10px;padding:10px;max-height:360px;overflow-y:auto;font-family:"IBM Plex Mono",monospace;font-size:13px}
+    .kv-row{display:flex;flex-direction:column;padding:6px 0;border-bottom:1px dashed rgba(255,255,255,0.02)}
+    .kv-key{color:var(--muted);font-weight:700;margin-bottom:4px}
+    .kv-value{color:var(--text);white-space:pre-wrap}
+    .log, .tools, .opinions, .buttons{background:var(--glass);border-radius:10px;padding:8px;overflow-y:auto}
+    .log{flex:1;min-height:180px;font-family:"IBM Plex Mono",monospace;font-size:13px}
+    .tools{max-height:260px}
+    .center .tools{max-height:340px}
+    .opinions{display:flex;flex-direction:column;gap:8px;max-height:220px}
+    .opinion-item{background:rgba(255,255,255,0.02);border-radius:8px;padding:10px;font-size:13px}
+    .buttons{display:flex;flex-wrap:wrap;gap:8px}
+    .tiny{font-size:12px;color:var(--muted)}
+
+    /* Legacy compact view */
+    .legacy{margin-top:12px;padding:8px;background:rgba(0,0,0,0.2);border-radius:8px;font-size:13px}
+
+    @media (max-width:1100px){
+      .wrap{
+        grid-template-columns:1fr;
+        grid-template-rows:64px auto auto auto;
+        overflow:auto;
+        padding:10px;
+      }
+      .left,.right,.top-video,.center{
+        grid-column:1;
+        grid-row:auto;
+      }
+      .video-wrap{max-width:100%;aspect-ratio:1/1;height:auto;}
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <h1>Dual Agent — Streaming UI</h1>
+      <div class="meta">
+        <div class="badge" id="status">waiting</div>
+        <div class="summary" id="summary-indicator">summarizing</div>
+        <div id="timestamp" class="tiny">--</div>
+      </div>
+    </header>
+
+    <aside class="panel left">
+      <div class="agent-top">
+        <img class="avatar" src="agent-images/explorer.jpg" alt="Explorer" />
+        <div>
+          <div class="agent-name">Explorer</div>
+          <div class="tiny">agent</div>
+        </div>
+      </div>
+      <div class="section-title">Obiettivo</div>
+      <div id="objective-explorer" class="tiny">Nessun obiettivo ancora.</div>
+
+      <div class="section-title" style="margin-top:10px">Ultima opinione</div>
+      <div id="explorer-latest-opinion" class="opinion-item">Nessuna opinione.</div>
+
+      <div class="section-title" style="margin-top:10px">Ultime tool call (scorrono)</div>
+      <div id="explorer-toolcalls" class="tools tiny" style="max-height:160px;overflow:hidden;position:relative"><div id="explorer-toolcalls-inner"></div></div>
+
+      
+    </aside>
+
+    <div class="top-video">
+      <div class="video-wrap panel">
+        <!-- placeholder video element; for Twitch embed, user can inject iframe here -->
+        <video id="game-video" autoplay muted playsinline></video>
+        <div class="video-overlay" id="press-overlay"></div>
+      </div>
+    </div>
+
+    <main class="center panel">
+      <div class="section-title">Ultime tool call</div>
+      <div id="center-toolcalls" class="tools tiny" style="max-height:220px">No tool calls yet.</div>
+
+      <div class="section-title" style="margin-top:8px">Obiettivo / Ultima opinione</div>
+      <div id="center-objective" class="tiny">Nessun messaggio recente.</div>
+      <div class="section-title" style="margin-top:10px">Memory summary</div>
+      <div id="memory-summary" class="memory-panel">Loading memory...</div>
+    </main>
+
+    <aside class="panel right">
+      <div class="agent-top">
+        <img class="avatar" src="agent-images/trainer.jpg" alt="Trainer" />
+        <div>
+          <div class="agent-name">Trainer</div>
+          <div class="tiny">agent</div>
+        </div>
+      </div>
+
+      <div class="section-title" style="margin-top:8px">Obiettivo</div>
+      <div id="objective-trainer" class="tiny">Nessun obiettivo ancora.</div>
+
+      <div class="section-title" style="margin-top:10px">Ultima opinione</div>
+      <div id="trainer-latest-opinion" class="opinion-item">Nessuna opinione.</div>
+
+      <div class="section-title" style="margin-top:10px">Ultime tool call (scorrono)</div>
+      <div id="trainer-toolcalls" class="tools tiny" style="max-height:160px;overflow:hidden;position:relative"><div id="trainer-toolcalls-inner"></div></div>
+
+      
+    </aside>
+  </div>
+
+  <script>
+    // Core elements
+    const statusEl = document.getElementById('status');
+    const timestamp = document.getElementById('timestamp');
+    const summaryEl = document.getElementById('summary-indicator');
+
+    const objectiveExplorerEl = document.getElementById('objective-explorer');
+    const objectiveTrainerEl = document.getElementById('objective-trainer');
+    const centerToolCallsEl = document.getElementById('center-toolcalls');
+    const centerObjectiveEl = document.getElementById('center-objective');
+    const pressOverlay = document.getElementById('press-overlay');
+    const explorerLatestOpinionEl = document.getElementById('explorer-latest-opinion');
+    const trainerLatestOpinionEl = document.getElementById('trainer-latest-opinion');
+    const explorerToolcallsContainer = document.getElementById('explorer-toolcalls');
+    const trainerToolcallsContainer = document.getElementById('trainer-toolcalls');
+    const explorerLastToolcallEl = document.createElement('div');
+    const trainerLastToolcallEl = document.createElement('div');
+    explorerToolcallsContainer.innerHTML = ''; explorerToolcallsContainer.appendChild(explorerLastToolcallEl);
+    trainerToolcallsContainer.innerHTML = ''; trainerToolcallsContainer.appendChild(trainerLastToolcallEl);
+
+    // minimal state
+
+    function setLive(isLive){
+      if(isLive){statusEl.textContent='live';statusEl.style.borderColor='transparent';statusEl.style.background='rgba(124,246,199,0.06)';statusEl.style.color='var(--accent-2)'}
+      else{statusEl.textContent='waiting';statusEl.style.background='rgba(77,208,225,0.04)';statusEl.style.color='var(--accent)'}
+    }
+
+    function renderButtonsOverlay(tools){
+      pressOverlay.innerHTML='';
+      const presses = [];
+      if(Array.isArray(tools)){
+        tools.forEach(t => {
+          try{
+            const args = JSON.parse(t.arguments||'{}');
+            if(t.name==='press_buttons' && Array.isArray(args.buttons)) presses.push(...args.buttons.filter(b=>typeof b==='string'));
+          }catch(e){}
+        })
+      }
+      // show most recent up to 6
+      presses.slice(-6).reverse().forEach(p=>{
+        const el = document.createElement('div'); el.className='press-chip'; el.textContent = p.toUpperCase(); pressOverlay.appendChild(el);
+      })
+    }
+
+    function renderTools(container, tools){
+      if(!tools || tools.length===0){container.textContent='No tool calls yet.';return}
+      container.innerHTML='';
+      tools.slice(-8).reverse().forEach(t=>{
+        const el = document.createElement('div'); el.style.marginBottom='6px';
+        const name = document.createElement('div'); name.style.fontWeight='700'; name.textContent=t.name;
+        const args = document.createElement('div'); args.className='tiny'; args.textContent = t.arguments||'';
+        el.appendChild(name); el.appendChild(args); container.appendChild(el);
+      })
+    }
+
+    function renderToolCallsCenter(container, tools){
+      if(!tools || tools.length===0){container.textContent='No tool calls yet.';return}
+      container.innerHTML='';
+      // show last 6 tool calls
+      tools.slice(-6).reverse().forEach(t=>{
+        const block = document.createElement('div'); block.style.marginBottom='10px';
+        const head = document.createElement('div'); head.style.fontWeight='800'; head.textContent = t.name;
+        block.appendChild(head);
+        try{
+          const parsed = JSON.parse(t.arguments||'{}');
+          if(Array.isArray(parsed.buttons) && parsed.buttons.length){
+            const bwrap = document.createElement('div'); bwrap.style.marginTop='6px';
+            parsed.buttons.forEach(b=>{const c=document.createElement('div');c.className='press-chip';c.style.display='inline-block';c.style.marginRight='6px';c.textContent=b.toUpperCase();bwrap.appendChild(c)});
+            block.appendChild(bwrap);
+          }
+          if(parsed.explanation_of_action || parsed.explanation || parsed.reason){
+            const ex = document.createElement('div'); ex.className='tiny'; ex.style.marginTop='6px'; ex.textContent = 'Explanation: ' + (parsed.explanation_of_action||parsed.explanation||parsed.reason);
+            block.appendChild(ex);
+          }
+        }catch(e){const raw = document.createElement('div'); raw.className='tiny'; raw.textContent = t.arguments||''; block.appendChild(raw)}
+        container.appendChild(block);
+      })
+    }
+
+    function renderOpinions(container, opinions){
+      container.innerHTML='';
+      if(!opinions || opinions.length===0){container.textContent='No opinions yet.';return}
+      opinions.slice(-12).reverse().forEach(o=>{const el=document.createElement('div');el.className='opinion-item';el.textContent=o;container.appendChild(el)});
+      container.scrollTop = container.scrollHeight;
+    }
+
+    function renderButtonsList(container, tools){
+      container.innerHTML='';
+      const items = [];
+      (tools||[]).forEach(t=>{
+        if(t.name!=='press_buttons') return;
+        try{
+          const a=JSON.parse(t.arguments||'{}');
+          items.push({buttons: a.buttons||[], explanation: a.explanation_of_action || a.reason || ''});
+        }catch(e){}
+      })
+      if(items.length===0){container.textContent='—';return}
+      items.slice(-20).reverse().forEach(entry=>{
+        const group = document.createElement('div'); group.style.marginBottom='8px';
+        (entry.buttons||[]).forEach(p=>{const chip=document.createElement('div');chip.className='press-chip';chip.style.fontSize='12px';chip.style.display='inline-block';chip.style.marginRight='6px';chip.textContent=p.toUpperCase();group.appendChild(chip)});
+        if(entry.explanation){const ex=document.createElement('div');ex.className='tiny';ex.style.marginTop='6px';ex.textContent = 'Explanation: ' + entry.explanation; group.appendChild(ex)}
+        container.appendChild(group);
+      })
+    }
+
+    function renderLatestOpinion(container, opinions){
+      if(!container) return;
+      if(!opinions || opinions.length===0){ container.textContent = 'Nessuna opinione.'; return; }
+      const last = opinions.slice(-1)[0];
+      container.textContent = typeof last === 'string' ? last : JSON.stringify(last);
+    }
+
+    function renderLastToolCall(container, tools){
+      if(!container) return;
+      container.innerHTML = '';
+      if(!tools || tools.length===0){ container.textContent = 'Nessuna tool call.'; return; }
+      const last = tools.slice(-1)[0];
+      const wrapper = document.createElement('div');
+      try{
+        const p = JSON.parse(last.arguments||'{}');
+        if(Array.isArray(p.buttons) && p.buttons.length){
+          const bwrap = document.createElement('div'); bwrap.style.marginBottom='6px';
+          p.buttons.forEach(btn=>{ const c = document.createElement('div'); c.className='press-chip'; c.style.display='inline-block'; c.style.marginRight='6px'; c.style.fontSize='12px'; c.textContent = String(btn).toUpperCase(); bwrap.appendChild(c)});
+          wrapper.appendChild(bwrap);
+        }
+        if(p.explanation_of_action || p.explanation || p.reason){ const ex = document.createElement('div'); ex.className='tiny'; ex.textContent = p.explanation_of_action || p.explanation || p.reason; wrapper.appendChild(ex); }
+      }catch(e){ wrapper.textContent = last.arguments || JSON.stringify(last); }
+      container.appendChild(wrapper);
+    }
+
+    // Render arbitrary JSON vertically (keys stacked)
+    function renderVerticalJSON(obj, container){
+      container.innerHTML = '';
+      if(!obj){ container.textContent = 'No memory.'; return; }
+      const addNode = (key, value, parent)=>{
+        const row = document.createElement('div'); row.className='kv-row';
+        const k = document.createElement('div'); k.className='kv-key'; k.textContent = key;
+        const v = document.createElement('div'); v.className='kv-value';
+        if(value === null) v.textContent = 'null';
+        else if(typeof value === 'object'){
+          if(Array.isArray(value)){
+            v.innerHTML = value.map(i=>typeof i==='object'?JSON.stringify(i):String(i)).join('\n');
+          } else {
+            // nested object - render indented
+            v.textContent = '';
+            Object.keys(value).forEach(sub=>{
+              const subRow = document.createElement('div'); subRow.style.paddingLeft='8px'; subRow.style.marginTop='6px';
+              addNode(sub, value[sub], subRow);
+              v.appendChild(subRow);
+            });
+          }
+        } else {
+          v.textContent = String(value);
+        }
+        row.appendChild(k); row.appendChild(v); parent.appendChild(row);
+      };
+      Object.keys(obj).forEach(key=> addNode(key, obj[key], container));
+    }
+
+    async function fetchMemorySummary(){
+      try{
+        const res = await fetch('./rag/memory_summary.json',{cache:'no-store'});
+        if(!res.ok) throw new Error('no memory file');
+        const data = await res.json();
+        // memory_summary.json in this project stores a 'messages' array containing a stringified JSON
+        let parsed = null;
+        if(Array.isArray(data.messages) && data.messages.length){
+          const candidate = data.messages[0];
+          try{ parsed = JSON.parse(candidate); }catch(e){ parsed = data; }
+        } else {
+          parsed = data;
+        }
+        const memEl = document.getElementById('memory-summary');
+        renderVerticalJSON(parsed, memEl);
+      }catch(err){ const memEl = document.getElementById('memory-summary'); if(memEl) memEl.textContent = 'Memory not available'; }
+    }
+
+    
+
+    async function refresh(){
+      try{
+        const res = await fetch('./state.json',{cache:'no-store'});
+        if(!res.ok) throw new Error('no state');
+        const data = await res.json();
+        setLive(true);
+        timestampEl.textContent = new Date((data.timestamp||Date.now()/1000)*1000).toLocaleTimeString();
+
+        
+        // overlay buttons (center video)
+        const allTools = [...(data.agents?.explorer?.tools||[]),...(data.agents?.trainer?.tools||[])];
+        renderButtonsOverlay(allTools);
+
+        // show only latest opinion in objectives if no explicit objective provided
+        const lastExplorerOpinion = Array.isArray(data.opinions?.explorer) && data.opinions.explorer.length ? data.opinions.explorer.slice(-1)[0] : null;
+        const lastTrainerOpinion = Array.isArray(data.opinions?.trainer) && data.opinions.trainer.length ? data.opinions.trainer.slice(-1)[0] : null;
+        let expObjVal='Nessun obiettivo ancora.'; if(data.objective && data.objective.explorer) expObjVal = data.objective.explorer; else if(data.objective_explorer) expObjVal = data.objective_explorer; else if(lastExplorerOpinion) expObjVal = lastExplorerOpinion;
+        let trObjVal='Nessun obiettivo ancora.'; if(data.objective && data.objective.trainer) trObjVal = data.objective.trainer; else if(data.objective_trainer) trObjVal = data.objective_trainer; else if(lastTrainerOpinion) trObjVal = lastTrainerOpinion;
+        objectiveExplorerEl.textContent = expObjVal; objectiveTrainerEl.textContent = trObjVal;
+
+        // center objective: latest overall opinion if exists
+        const latestOverallOpinion = lastTrainerOpinion || lastExplorerOpinion;
+        centerObjectiveEl.textContent = latestOverallOpinion || 'Nessun messaggio recente.';
+
+        // render per-agent latest opinion and last tool call
+        renderLatestOpinion(explorerLatestOpinionEl, data.opinions?.explorer);
+        renderLatestOpinion(trainerLatestOpinionEl, data.opinions?.trainer);
+        renderLastToolCall(explorerLastToolcallEl, data.agents?.explorer?.tools || []);
+        renderLastToolCall(trainerLastToolcallEl, data.agents?.trainer?.tools || []);
+
+        // render center tool calls (compact with buttons)
+        renderToolCallsCenter(centerToolCallsEl, allTools);
+
+        // refresh memory summary panel
+        fetchMemorySummary();
+
+        // summary blink
+        const lastSummary = data.last_summary_time || 0; const now = Date.now()/1000;
+        if(now - lastSummary <= 8) summaryEl.style.boxShadow = '0 0 18px rgba(124,246,199,0.18)'; else summaryEl.style.boxShadow='none';
+      }catch(err){ setLive(false); summaryEl.style.boxShadow='none' }
+    }
+
+    refresh(); setInterval(refresh,1500);
+
+    // Auto demo: if you want to push a Twitch iframe into the center, you can call:
+    // document.getElementById('game-video').replaceWith(iframeElement)
+  </script>
+</body>
+</html>
