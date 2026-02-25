@@ -63,6 +63,7 @@ ENV/
 .DS_Store
 
 agent/simple_agent.py
+old_code.py
 
 test_images_endpoint.py
 test_openai_error.py
